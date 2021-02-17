@@ -1,12 +1,13 @@
-CC = gcc
+CC = clang++ -Wall -std=c++11
 CFLAGS = -g -c
 AR = ar -rc
 RANLIB = ranlib
 
 SCHED = RR
-TSLICE=5 ##timeslice variable
+#TSLICE=5 ##timeslice variable
 
-all: rpthread.a
+#all: rpthread.a
+all: main
 
 rpthread.a: rpthread.o
 	$(AR) librpthread.a rpthread.o
@@ -14,10 +15,13 @@ rpthread.a: rpthread.o
 
 rpthread.o: rpthread.h
 
+main: 
+	$(CC) main.cpp -o main
+
 ifeq ($(SCHED), RR)
-	$(CC) -pthread $(CFLAGS) rpthread.c -DTIMESLICE $(TSLICE)
+	$(CC) -pthread $(CFLAGS) rpthread.cpp -DTIMESLICE $(TSLICE)
 else ifeq ($(SCHED), MLFQ)
-	$(CC) -pthread $(CFLAGS) rpthread.c -DMLFQ -DTIMESLICE $(TSLICE)
+	$(CC) -pthread $(CFLAGS) rpthread.cpp -DMLFQ -DTIMESLICE $(TSLICE)
 else
 	echo "no such scheduling algorithm"
 endif
