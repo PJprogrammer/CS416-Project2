@@ -32,22 +32,22 @@
 typedef uint rpthread_t;
 
 typedef struct threadControlBlock {
-	/* add important states in a thread control block */
-	// thread Id
-	// thread status
-	// thread context
-	// thread stack
-	// thread priority
-	// And more ...
+    /* add important states in a thread control block */
+    // thread Id
+    // thread status
+    // thread context
+    // thread stack
+    // thread priority
+    // And more ...
 
-	// YOUR CODE HERE
-} tcb; 
+    // YOUR CODE HERE
+} tcb;
 
 /* mutex struct definition */
 typedef struct rpthread_mutex_t {
-	/* add something here */
+    /* add something here */
 
-	// YOUR CODE HERE
+    // YOUR CODE HERE
 } rpthread_mutex_t;
 
 /* define your data structures here: */
@@ -60,7 +60,7 @@ typedef struct rpthread_mutex_t {
 
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void
-    *(*function)(void*), void * arg);
+*(*function)(void*), void * arg);
 
 /* give CPU pocession to other user level threads voluntarily */
 int rpthread_yield();
@@ -73,7 +73,7 @@ int rpthread_join(rpthread_t thread, void **value_ptr);
 
 /* initial the mutex lock */
 int rpthread_mutex_init(rpthread_mutex_t *mutex, const pthread_mutexattr_t
-    *mutexattr);
+*mutexattr);
 
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex);
