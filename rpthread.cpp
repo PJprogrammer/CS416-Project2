@@ -4,15 +4,54 @@
 // username of iLab:
 // iLab Server:
 
+#include <cstdlib>
+#include <iostream>
+#include <vector>
 #include "rpthread.h"
+
+static void schedule();
+
+using namespace std;
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
-
+int threadNum = 0; // Global var to assign thread ids
+vector<tcb*> queue; // Scheduling queue
+vector<tcb*> threadTable(100); // Threads Table
+static ucontext_t mainThread;
+uint currentThread = -1;
 
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
                     void *(*function)(void*), void * arg) {
+    *thread = threadNum;
+
+    tcb* myTCB = new tcb();
+    myTCB->id = threadNum;
+    myTCB->status = READY;
+    myTCB->stack = NULL;
+
+    getcontext(&myTCB->context);
+
+    myTCB->context.uc_link = NULL;
+    myTCB->stack = malloc(1024*64);
+    myTCB->context.uc_stack.ss_sp = myTCB->stack;
+    myTCB->context.uc_stack.ss_size = 1024*64;
+    myTCB->context.uc_stack.ss_flags = NULL;
+
+    if(myTCB->stack == NULL) {
+        cout << "Error: Unable to allocate stack memory: " << 1024*64 << " bytes in the heap\n";
+    }
+
+    makecontext(&myTCB->context, (void (*)()) &rpthread_start, 3, myTCB, function, arg);
+
+    queue.push_back(myTCB);
+    threadTable[threadNum] = myTCB;
+
+    ++threadNum;
+    schedule();
+
+
     // create Thread Control Block
     // create and initialize the context of this thread
     // allocate space of stack for this thread to run
@@ -21,6 +60,12 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
 
     return 0;
 };
+
+void rpthread_start(tcb *myTCB, void (*function)(void *), void *arg) {
+    myTCB->status = SCHEDULED;
+    function(arg);
+    myTCB->status = FINISHED;
+}
 
 /* give CPU possession to other user-level threads voluntarily */
 int rpthread_yield() {
@@ -35,6 +80,15 @@ int rpthread_yield() {
 
 /* terminate a thread */
 void rpthread_exit(void *value_ptr) {
+    tcb* myTCB = threadTable[currentThread];
+    swapcontext(&myTCB->context, &mainThread);
+    currentThread = -1;
+    myTCB->status = FINISHED;
+    myTCB->retVal = value_ptr;
+    free(myTCB->stack);
+    // Save Return value pointer in tcb
+
+
     // Deallocated any dynamic memory created when starting this thread
 
     // YOUR CODE HERE
@@ -91,6 +145,14 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
+    if(queue.empty()) {
+        return;
+    }
+
+    tcb* myTCB = queue.back();
+    currentThread = myTCB->id;
+    swapcontext(&mainThread, &myTCB->context);
+
     // Every time when timer interrup happens, your thread library
     // should be contexted switched from thread context to this
     // schedule function

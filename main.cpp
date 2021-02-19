@@ -1,20 +1,31 @@
 #include <iostream>
+#include <vector>
 #include "rpthread.h"
 
 using namespace std;
 
 void* test(void*) {
 
-  cout << "THIS IS A SEPARATE THREAD";
+  cout << "THIS IS A SEPARATE THREAD\n";
+
+  rpthread_exit(NULL);
 
 }
 
-int main() {
+struct hello {
+    int myID;
+    string myName;
+};
 
-    rpthread_t t1;
+int main() {
+    cout << "Hello World!\n";
+
+    rpthread_t t1, t2, t3;
 
     rpthread_create(&t1, NULL, test, NULL);
+    rpthread_create(&t2, NULL, test, NULL);
+    rpthread_create(&t3, NULL, test, NULL);
     
-    cout << "Hello World!";
+
     return 0;
 }
