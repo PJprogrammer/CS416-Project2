@@ -1,4 +1,4 @@
-CC = clang++ -Wall -std=c++11
+CC = clang++ -w -std=c++11
 CFLAGS = -g -c
 AR = ar -rc
 RANLIB = ranlib
@@ -7,7 +7,7 @@ SCHED = RR
 #TSLICE=5 ##timeslice variable
 
 #all: rpthread.a
-all: main
+all: main run
 
 rpthread.a: rpthread.o
 	$(AR) librpthread.a rpthread.o
@@ -16,7 +16,10 @@ rpthread.a: rpthread.o
 rpthread.o: rpthread.h
 
 main: 
-	$(CC) main.cpp -o main
+	$(CC) *.cpp -o main
+
+run:
+	./main
 
 ifeq ($(SCHED), RR)
 	$(CC) -pthread $(CFLAGS) rpthread.cpp -DTIMESLICE $(TSLICE)
@@ -27,4 +30,4 @@ else
 endif
 
 clean:
-	rm -rf testfile *.o *.a
+	rm -rf testfile *.o *.a main
