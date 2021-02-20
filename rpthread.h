@@ -28,6 +28,9 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <ucontext.h>
+#include <csignal>
+
+#define STACK_SIZE SIGSTKSZ
 
 typedef uint rpthread_t;
 
@@ -35,8 +38,8 @@ typedef struct threadControlBlock {
     uint id;
     int status;
     ucontext_t context;
-    void* stack;
     void* retVal;
+    uint joiningThread;
 
     /* add important states in a thread control block */
     // thread Id
@@ -69,7 +72,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void
 *(*function)(void*), void * arg);
 
 /* start a new thread */
-void rpthread_start(tcb *myTCB, void (*function)(void *), void *arg);
+void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg);
 
 /* give CPU pocession to other user level threads voluntarily */
 int rpthread_yield();

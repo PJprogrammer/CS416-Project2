@@ -15,42 +15,71 @@ using namespace std;
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
-int threadNum = 0; // Global var to assign thread ids
+int threadNum = 2; // Global var to assign thread ids
 vector<tcb*> queue; // Scheduling queue
 vector<tcb*> threadTable(100); // Threads Table
-static ucontext_t mainThread;
-uint currentThread = -1;
+
+uint currentThread = 1;
+bool isSchedCreated = false;
 
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
                     void *(*function)(void*), void * arg) {
+
     *thread = threadNum;
 
-    tcb* myTCB = new tcb();
-    myTCB->id = threadNum;
-    myTCB->status = READY;
-    myTCB->stack = NULL;
+    // Initialize new thread
+    tcb* newThread = new tcb();
+    newThread->id = threadNum;
+    newThread->status = READY;
+    newThread->joiningThread = 0;
+    getcontext(&newThread->context);
+    newThread->context.uc_stack.ss_sp = malloc(STACK_SIZE);
+    newThread->context.uc_stack.ss_size = STACK_SIZE;
+    newThread->context.uc_stack.ss_flags = NULL;
 
-    getcontext(&myTCB->context);
-
-    myTCB->context.uc_link = NULL;
-    myTCB->stack = malloc(1024*64);
-    myTCB->context.uc_stack.ss_sp = myTCB->stack;
-    myTCB->context.uc_stack.ss_size = 1024*64;
-    myTCB->context.uc_stack.ss_flags = NULL;
-
-    if(myTCB->stack == NULL) {
+    if(newThread->context.uc_stack.ss_sp == NULL) {
         cout << "Error: Unable to allocate stack memory: " << 1024*64 << " bytes in the heap\n";
     }
 
-    makecontext(&myTCB->context, (void (*)()) &rpthread_start, 3, myTCB, function, arg);
+    makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
+    threadTable[threadNum] = newThread;
 
-    queue.push_back(myTCB);
-    threadTable[threadNum] = myTCB;
+    ++threadNum; // Increment thread id counter
 
-    ++threadNum;
-    schedule();
+    // Initialize the scheduler & main thread
+    if(!isSchedCreated) {
+        tcb* schedTCB = new tcb();
+        schedTCB->id = 0;
+        getcontext(&schedTCB->context);
+        schedTCB->context.uc_link = NULL;
+        schedTCB->context.uc_stack.ss_sp = malloc(STACK_SIZE);
+        schedTCB->context.uc_stack.ss_size = STACK_SIZE;
+        schedTCB->context.uc_stack.ss_flags = NULL;
 
+        if(schedTCB->context.uc_stack.ss_sp == NULL) {
+            cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
+        }
+
+        makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
+        threadTable[0] = schedTCB;
+
+        tcb* mainTCB = new tcb();
+        mainTCB->id = 1;
+        mainTCB->status = READY;
+        threadTable[1] = mainTCB;
+
+        queue.push_back(newThread);
+        queue.push_back(threadTable[1]); // mainTCB
+
+        isSchedCreated = true;
+
+        // Swap from main thread to scheduler thread
+        currentThread = 0;
+        swapcontext(&threadTable[1]->context, &threadTable[0]->context);
+    } else {
+        queue.insert(queue.end()-1, newThread);
+    }
 
     // create Thread Control Block
     // create and initialize the context of this thread
@@ -61,14 +90,23 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
     return 0;
 };
 
-void rpthread_start(tcb *myTCB, void (*function)(void *), void *arg) {
-    myTCB->status = SCHEDULED;
+void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg) {
+    currTCB->status = SCHEDULED;
     function(arg);
-    myTCB->status = FINISHED;
+    currTCB->status = FINISHED;
+    free(currTCB->context.uc_stack.ss_sp);
+
+    currentThread = 0;
+    swapcontext(&currTCB->context, &threadTable[0]->context);
 }
 
 /* give CPU possession to other user-level threads voluntarily */
 int rpthread_yield() {
+    tcb* currTCB = threadTable[currentThread];
+    currTCB->status = READY;
+
+    currentThread = 0;
+    swapcontext(&currTCB->context, &threadTable[0]->context);
 
     // change thread state from Running to Ready
     // save context of this thread to its thread control block
@@ -80,14 +118,19 @@ int rpthread_yield() {
 
 /* terminate a thread */
 void rpthread_exit(void *value_ptr) {
-    tcb* myTCB = threadTable[currentThread];
-    swapcontext(&myTCB->context, &mainThread);
-    currentThread = -1;
-    myTCB->status = FINISHED;
-    myTCB->retVal = value_ptr;
-    free(myTCB->stack);
-    // Save Return value pointer in tcb
+    tcb* currTCB = threadTable[currentThread];
+    currTCB->status = FINISHED;
+    currTCB->retVal = value_ptr;
+    free(currTCB->context.uc_stack.ss_sp);
 
+    if(currTCB->joiningThread != 0) {
+        tcb* joinedTCB = threadTable[currTCB->joiningThread];
+        joinedTCB->status = READY;
+        queue.insert(queue.begin(), joinedTCB);
+    }
+
+    currentThread = 0;
+    setcontext(&threadTable[0]->context);
 
     // Deallocated any dynamic memory created when starting this thread
 
@@ -97,6 +140,18 @@ void rpthread_exit(void *value_ptr) {
 
 /* Wait for thread termination */
 int rpthread_join(rpthread_t thread, void **value_ptr) {
+    tcb* currTCB = threadTable[currentThread];
+    tcb* joinedTCB = threadTable[thread];
+
+    if(joinedTCB->status != FINISHED) {
+        joinedTCB->joiningThread = currTCB->id;
+        currTCB->status = BLOCKED;
+
+        currentThread = 0;
+        swapcontext(&currTCB->context, &threadTable[0]->context);
+    }
+
+    value_ptr = &joinedTCB->retVal;
 
     // wait for a specific thread to terminate
     // de-allocate any dynamic memory created by the joining thread
@@ -149,9 +204,16 @@ static void schedule() {
         return;
     }
 
-    tcb* myTCB = queue.back();
-    currentThread = myTCB->id;
-    swapcontext(&mainThread, &myTCB->context);
+    if(queue.back()->status == FINISHED || queue.back()->status == BLOCKED) {
+        queue.pop_back();
+    } else {
+        queue.insert(queue.begin(), queue.back());
+        queue.pop_back();
+    }
+
+    tcb* currTCB = queue.back();
+    currentThread = currTCB->id;
+    setcontext(&currTCB->context);
 
     // Every time when timer interrup happens, your thread library
     // should be contexted switched from thread context to this
