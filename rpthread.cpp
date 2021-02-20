@@ -7,17 +7,16 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <atomic>
 #include "rpthread.h"
 
 static void schedule();
 
-using namespace std;
-
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
 int threadNum = 2; // Global var to assign thread ids
-vector<tcb*> queue; // Scheduling queue
-vector<tcb*> threadTable(100); // Threads Table
+std::vector<tcb*> queue; // Scheduling queue
+std::vector<tcb*> threadTable(100); // Threads Table
 
 uint currentThread = 1;
 bool isSchedCreated = false;
@@ -39,7 +38,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
     newThread->context.uc_stack.ss_flags = NULL;
 
     if(newThread->context.uc_stack.ss_sp == NULL) {
-        cout << "Error: Unable to allocate stack memory: " << 1024*64 << " bytes in the heap\n";
+        std::cout << "Error: Unable to allocate stack memory: " << 1024*64 << " bytes in the heap\n";
     }
 
     makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
@@ -58,7 +57,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
         schedTCB->context.uc_stack.ss_flags = NULL;
 
         if(schedTCB->context.uc_stack.ss_sp == NULL) {
-            cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
+            std::cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
         }
 
         makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
@@ -171,6 +170,18 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex,
 
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
+    bool prev = std::atomic_flag_test_and_set_explicit(&mutex->sdsd, std::memory_order_acquire);
+    tcb* currTCB = threadTable[currentThread];
+
+    if(prev) { // flag was previously true, so mutex is not acquired successfully
+        mutex->queue.push_back(currTCB->id);
+        currTCB->status = BLOCKED;
+
+        currentThread = 0;
+        swapcontext(&currTCB->context, &threadTable[0]->context);
+    }
+
+
     // use the built-in test-and-set atomic function to test the mutex
     // if the mutex is acquired successfully, enter the critical section
     // if acquiring mutex fails, push current thread into block list and //
@@ -182,6 +193,11 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
+    std::atomic_flag_clear_explicit(&mutex->sdsd, std::memory_order_release);
+
+    for(uint i : mutex->queue) {
+        queue.insert(queue.begin(), threadTable[i]);
+    }
     // Release mutex and make it available again.
     // Put threads in block list to run queue
     // so that they could compete for mutex later.

@@ -29,8 +29,11 @@
 #include <sys/types.h>
 #include <ucontext.h>
 #include <csignal>
+#include <vector>
+#include <atomic>
 
 #define STACK_SIZE SIGSTKSZ
+
 
 typedef uint rpthread_t;
 
@@ -54,6 +57,8 @@ typedef struct threadControlBlock {
 
 /* mutex struct definition */
 typedef struct rpthread_mutex_t {
+    std::atomic_flag sdsd = ATOMIC_FLAG_INIT;
+    std::vector<uint> queue;
     /* add something here */
 
     // YOUR CODE HERE

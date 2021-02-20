@@ -4,32 +4,35 @@
 
 using namespace std;
 
+rpthread_mutex_t  mutex;
+
 void* test1(void*) {
-  cout << "Thread 1: Entered before yield\n";
+    cout << "Thread 1: Before yield\n";
 
-  rpthread_yield();
+    rpthread_mutex_lock(&mutex);
+    rpthread_yield();
+    rpthread_mutex_unlock(&mutex);
 
-  cout << "Thread 1: Hello after yield\n";
+    cout << "Thread 1: Hello after yield\n";
 
-  rpthread_exit(NULL);
-
+    rpthread_exit(NULL);
 }
 
 void* test2(void*) {
-    cout << "Thread 2: Entered before yield\n";
+    cout << "Thread 2: Entered after yield from Thread 1\n";
 
-    rpthread_yield();
-
-
-    cout << "Thread 2: Hello after yield\n";
+    rpthread_mutex_lock(&mutex);
+    cout << "Thread 2: Hello \n";
+    rpthread_mutex_unlock(&mutex);
 
     rpthread_exit(NULL);
-
 }
 
 
 int main() {
     cout << "Hello World!\n";
+
+    rpthread_mutex_init(&mutex, NULL);
 
     rpthread_t t1, t2, t3;
 
