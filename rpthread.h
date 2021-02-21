@@ -1,8 +1,8 @@
 // File:	rpthread_t.h
 
-// List all group member's name:
+// List all group member's name: Marko Elez (me470), Paul John (pj242)
 // username of iLab:
-// iLab Server:
+// iLab Server: cd.cs.rutgers.edu
 
 #ifndef RTHREAD_T_H
 #define RTHREAD_T_H
@@ -57,7 +57,7 @@ typedef struct threadControlBlock {
 
 /* mutex struct definition */
 typedef struct rpthread_mutex_t {
-    std::atomic_flag sdsd = ATOMIC_FLAG_INIT;
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
     std::vector<uint> queue;
     /* add something here */
 
@@ -100,6 +100,14 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex);
 
 /* destroy the mutex */
 int rpthread_mutex_destroy(rpthread_mutex_t *mutex);
+
+/* Scheduling */
+static void schedule();
+
+/* Library Initialization */
+void createSchedulerContext();
+
+void createMainContext();
 
 #ifdef USE_RTHREAD
 #define pthread_t rpthread_t

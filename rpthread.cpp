@@ -1,8 +1,8 @@
 // File:	rpthread.c
 
-// List all group member's name:
+// List all group member's name: Marko Elez (me470), Paul John (pj242)
 // username of iLab:
-// iLab Server:
+// iLab Server: cd.cs.rutgers.edu
 
 #include <cstdlib>
 #include <iostream>
@@ -10,10 +10,9 @@
 #include <atomic>
 #include "rpthread.h"
 
-static void schedule();
+#define SCHEDULER_THREAD 0
+#define MAIN_THREAD 1
 
-// INITAILIZE ALL YOUR VARIABLES HERE
-// YOUR CODE HERE
 int threadNum = 2; // Global var to assign thread ids
 std::vector<tcb*> queue; // Scheduling queue
 std::vector<tcb*> threadTable(100); // Threads Table
@@ -24,7 +23,6 @@ bool isSchedCreated = false;
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
                     void *(*function)(void*), void * arg) {
-
     *thread = threadNum;
 
     // Initialize new thread
@@ -48,43 +46,20 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
 
     // Initialize the scheduler & main thread
     if(!isSchedCreated) {
-        tcb* schedTCB = new tcb();
-        schedTCB->id = 0;
-        getcontext(&schedTCB->context);
-        schedTCB->context.uc_link = NULL;
-        schedTCB->context.uc_stack.ss_sp = malloc(STACK_SIZE);
-        schedTCB->context.uc_stack.ss_size = STACK_SIZE;
-        schedTCB->context.uc_stack.ss_flags = NULL;
-
-        if(schedTCB->context.uc_stack.ss_sp == NULL) {
-            std::cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
-        }
-
-        makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
-        threadTable[0] = schedTCB;
-
-        tcb* mainTCB = new tcb();
-        mainTCB->id = 1;
-        mainTCB->status = READY;
-        threadTable[1] = mainTCB;
+        createSchedulerContext();
+        createMainContext();
 
         queue.push_back(newThread);
-        queue.push_back(threadTable[1]); // mainTCB
+        queue.push_back(threadTable[MAIN_THREAD]); // mainTCB
 
         isSchedCreated = true;
 
         // Swap from main thread to scheduler thread
         currentThread = 0;
-        swapcontext(&threadTable[1]->context, &threadTable[0]->context);
+        swapcontext(&threadTable[MAIN_THREAD]->context, &threadTable[SCHEDULER_THREAD]->context);
     } else {
         queue.insert(queue.end()-1, newThread);
     }
-
-    // create Thread Control Block
-    // create and initialize the context of this thread
-    // allocate space of stack for this thread to run
-    // after everything is all set, push this thread int
-    // YOUR CODE HERE
 
     return 0;
 };
@@ -96,7 +71,7 @@ void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg) {
     free(currTCB->context.uc_stack.ss_sp);
 
     currentThread = 0;
-    swapcontext(&currTCB->context, &threadTable[0]->context);
+    swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
 }
 
 /* give CPU possession to other user-level threads voluntarily */
@@ -105,13 +80,8 @@ int rpthread_yield() {
     currTCB->status = READY;
 
     currentThread = 0;
-    swapcontext(&currTCB->context, &threadTable[0]->context);
+    swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
 
-    // change thread state from Running to Ready
-    // save context of this thread to its thread control block
-    // wwitch from thread context to scheduler context
-
-    // YOUR CODE HERE
     return 0;
 };
 
@@ -129,11 +99,7 @@ void rpthread_exit(void *value_ptr) {
     }
 
     currentThread = 0;
-    setcontext(&threadTable[0]->context);
-
-    // Deallocated any dynamic memory created when starting this thread
-
-    // YOUR CODE HERE
+    setcontext(&threadTable[SCHEDULER_THREAD]->context);
 };
 
 
@@ -147,30 +113,24 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
         currTCB->status = BLOCKED;
 
         currentThread = 0;
-        swapcontext(&currTCB->context, &threadTable[0]->context);
+        swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
     }
 
     value_ptr = &joinedTCB->retVal;
 
-    // wait for a specific thread to terminate
-    // de-allocate any dynamic memory created by the joining thread
-
-    // YOUR CODE HERE
     return 0;
 };
 
 /* initialize the mutex lock */
 int rpthread_mutex_init(rpthread_mutex_t *mutex,
                         const pthread_mutexattr_t *mutexattr) {
-    //initialize data structures for this mutex
 
-    // YOUR CODE HERE
     return 0;
 };
 
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
-    bool prev = std::atomic_flag_test_and_set_explicit(&mutex->sdsd, std::memory_order_acquire);
+    bool prev = std::atomic_flag_test_and_set_explicit(&mutex->flag, std::memory_order_acquire);
     tcb* currTCB = threadTable[currentThread];
 
     if(prev) { // flag was previously true, so mutex is not acquired successfully
@@ -178,38 +138,26 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
         currTCB->status = BLOCKED;
 
         currentThread = 0;
-        swapcontext(&currTCB->context, &threadTable[0]->context);
+        swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
     }
 
-
-    // use the built-in test-and-set atomic function to test the mutex
-    // if the mutex is acquired successfully, enter the critical section
-    // if acquiring mutex fails, push current thread into block list and //
-    // context switch to the scheduler thread
-
-    // YOUR CODE HERE
     return 0;
 };
 
 /* release the mutex lock */
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
-    std::atomic_flag_clear_explicit(&mutex->sdsd, std::memory_order_release);
+    std::atomic_flag_clear_explicit(&mutex->flag, std::memory_order_release);
 
     for(uint i : mutex->queue) {
         queue.insert(queue.begin(), threadTable[i]);
     }
-    // Release mutex and make it available again.
-    // Put threads in block list to run queue
-    // so that they could compete for mutex later.
 
-    // YOUR CODE HERE
     return 0;
 };
 
 
 /* destroy the mutex */
 int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
-    // Deallocate dynamic memory created in rpthread_mutex_init
 
     return 0;
 };
@@ -270,7 +218,28 @@ static void sched_mlfq() {
     // YOUR CODE HERE
 }
 
-// Feel free to add any other functions you need
+void createSchedulerContext() {
+    tcb* schedTCB = new tcb();
+    schedTCB->id = 0;
+    getcontext(&schedTCB->context);
+    schedTCB->context.uc_link = NULL;
+    schedTCB->context.uc_stack.ss_sp = malloc(STACK_SIZE);
+    schedTCB->context.uc_stack.ss_size = STACK_SIZE;
+    schedTCB->context.uc_stack.ss_flags = NULL;
 
-// YOUR CODE HERE
+    if(schedTCB->context.uc_stack.ss_sp == NULL) {
+        std::cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
+    }
 
+    makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
+
+    threadTable[SCHEDULER_THREAD] = schedTCB;
+}
+
+void createMainContext() {
+    tcb* mainTCB = new tcb();
+    mainTCB->id = 1;
+    mainTCB->status = READY;
+
+    threadTable[MAIN_THREAD] = mainTCB;
+}
