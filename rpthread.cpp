@@ -9,6 +9,9 @@
 #include <vector>
 #include <atomic>
 #include "rpthread.h"
+#include <csignal>
+#include <sys/time.h>
+#include <cstring>
 
 #define SCHEDULER_THREAD 0
 #define MAIN_THREAD 1
@@ -19,6 +22,10 @@ std::vector<tcb*> threadTable(100); // Threads Table
 
 uint currentThread = 1;
 bool isSchedCreated = false;
+
+void setupTimer();
+void timer_handler(int signum);
+
 
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
@@ -54,7 +61,9 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
 
         isSchedCreated = true;
 
-        // Swap from main thread to scheduler thread
+        setupTimer();
+
+        // TODO Swap from main thread to scheduler thread?
         currentThread = 0;
         swapcontext(&threadTable[MAIN_THREAD]->context, &threadTable[SCHEDULER_THREAD]->context);
     } else {
@@ -179,7 +188,7 @@ static void schedule() {
     currentThread = currTCB->id;
     setcontext(&currTCB->context);
 
-    // Every time when timer interrup happens, your thread library
+    // Every time when setupTimer interrup happens, your thread library
     // should be contexted switched from thread context to this
     // schedule function
 
@@ -242,4 +251,34 @@ void createMainContext() {
     mainTCB->status = READY;
 
     threadTable[MAIN_THREAD] = mainTCB;
+}
+
+void setupTimer() {
+    struct itimerval it_val;	/* for setting itimer */
+
+    if (signal(SIGALRM, (void (*)(int)) timer_handler) == SIG_ERR) {
+        perror("Unable to catch SIGALRM");
+        exit(1);
+    }
+    it_val.it_value.tv_sec =     TIMESLICE/1000;
+    it_val.it_value.tv_usec =    (TIMESLICE*1000) % 1000000;
+    it_val.it_interval = it_val.it_value;
+    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+        perror("error calling setitimer()");
+        exit(1);
+    }
+
+    bool isTimerFiredOnce = false;
+    while (!isTimerFiredOnce) {
+        pause();
+        isTimerFiredOnce = true;
+    }
+}
+
+void timer_handler(int signum) {
+    char* test = "DEBUG: Running setupTimer handler\n";
+    write(1, test, strlen(test));
+
+    // setupTimer expired, schedule next thread
+    swapcontext(&threadTable[currentThread]->context, &threadTable[SCHEDULER_THREAD]->context);
 }

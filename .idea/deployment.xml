@@ -5,8 +5,12 @@
       <paths name="Command Center (9c335147-2f78-4d45-b9c8-a8e374fcbc6e)">
         <serverdata>
           <mappings>
-            <mapping local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/tmp/tmp.zrCyjOhQoD" local="$PROJECT_DIR$" />
           </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+          </excludedPaths>
         </serverdata>
       </paths>
       <paths name="WSL (1e89004d-4e73-4547-8d7c-b889087d6222)">

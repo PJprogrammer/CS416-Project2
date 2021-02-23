@@ -4,3 +4,5 @@ project(Project2)
 set(CMAKE_CXX_STANDARD 11)
 
 add_executable(Project2 main.cpp rpthread.cpp rpthread.h)
+
+target_link_libraries(${PROJECT_NAME} rt)
