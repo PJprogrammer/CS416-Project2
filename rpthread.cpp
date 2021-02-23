@@ -26,12 +26,13 @@ bool isSchedCreated = false;
 void setupTimer();
 void timer_handler(int signum);
 
+tcb* get_current_tcb() {
+  return threadTable[currentThread];
+}
 
 /* create a new thread */
-int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
-                    void *(*function)(void*), void * arg) {
+int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
     *thread = threadNum;
-
     // Initialize new thread
     tcb* newThread = new tcb();
     newThread->id = threadNum;
@@ -42,17 +43,15 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
     newThread->context.uc_stack.ss_size = STACK_SIZE;
     newThread->context.uc_stack.ss_flags = NULL;
 
-    if(newThread->context.uc_stack.ss_sp == NULL) {
+    if (newThread->context.uc_stack.ss_sp == NULL) {
         std::cout << "Error: Unable to allocate stack memory: " << 1024*64 << " bytes in the heap\n";
     }
 
     makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
-    threadTable[threadNum] = newThread;
-
-    ++threadNum; // Increment thread id counter
+    threadTable[threadNum++] = newThread;
 
     // Initialize the scheduler & main thread
-    if(!isSchedCreated) {
+    if (!isSchedCreated) {
         createSchedulerContext();
         createMainContext();
 
@@ -65,8 +64,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr,
 
         // TODO Swap from main thread to scheduler thread?
         currentThread = 0;
-        swapcontext(&threadTable[MAIN_THREAD]->context, &threadTable[SCHEDULER_THREAD]->context);
-    } else {
+        swapcontext(&threadTable[MAIN_THREAD]->context, &threadTable[SCHEDULER_THREAD]->context); } else {
         queue.insert(queue.end()-1, newThread);
     }
 
@@ -85,7 +83,7 @@ void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg) {
 
 /* give CPU possession to other user-level threads voluntarily */
 int rpthread_yield() {
-    tcb* currTCB = threadTable[currentThread];
+    tcb* currTCB = get_current_tcb();
     currTCB->status = READY;
 
     currentThread = 0;
@@ -96,12 +94,12 @@ int rpthread_yield() {
 
 /* terminate a thread */
 void rpthread_exit(void *value_ptr) {
-    tcb* currTCB = threadTable[currentThread];
+    tcb* currTCB = get_current_tcb();
     currTCB->status = FINISHED;
     currTCB->retVal = value_ptr;
     free(currTCB->context.uc_stack.ss_sp);
 
-    if(currTCB->joiningThread != 0) {
+    if (currTCB->joiningThread != 0) {
         tcb* joinedTCB = threadTable[currTCB->joiningThread];
         joinedTCB->status = READY;
         queue.insert(queue.begin(), joinedTCB);
@@ -114,10 +112,10 @@ void rpthread_exit(void *value_ptr) {
 
 /* Wait for thread termination */
 int rpthread_join(rpthread_t thread, void **value_ptr) {
-    tcb* currTCB = threadTable[currentThread];
+    tcb* currTCB = get_current_tcb();
     tcb* joinedTCB = threadTable[thread];
 
-    if(joinedTCB->status != FINISHED) {
+    if (joinedTCB->status != FINISHED) {
         joinedTCB->joiningThread = currTCB->id;
         currTCB->status = BLOCKED;
 
@@ -140,9 +138,9 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex,
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
     bool prev = std::atomic_flag_test_and_set_explicit(&mutex->flag, std::memory_order_acquire);
-    tcb* currTCB = threadTable[currentThread];
+    tcb* currTCB = get_current_tcb();
 
-    if(prev) { // flag was previously true, so mutex is not acquired successfully
+    if (prev) { // flag was previously true, so mutex is not acquired successfully
         mutex->queue.push_back(currTCB->id);
         currTCB->status = BLOCKED;
 
@@ -173,11 +171,11 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
-    if(queue.empty()) {
+    if (queue.empty()) {
         return;
     }
 
-    if(queue.back()->status == FINISHED || queue.back()->status == BLOCKED) {
+    if (queue.back()->status == FINISHED || queue.back()->status == BLOCKED) {
         queue.pop_back();
     } else {
         queue.insert(queue.begin(), queue.back());
@@ -236,7 +234,7 @@ void createSchedulerContext() {
     schedTCB->context.uc_stack.ss_size = STACK_SIZE;
     schedTCB->context.uc_stack.ss_flags = NULL;
 
-    if(schedTCB->context.uc_stack.ss_sp == NULL) {
+    if (schedTCB->context.uc_stack.ss_sp == NULL) {
         std::cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
     }
 
@@ -280,5 +278,5 @@ void timer_handler(int signum) {
     write(1, test, strlen(test));
 
     // setupTimer expired, schedule next thread
-    swapcontext(&threadTable[currentThread]->context, &threadTable[SCHEDULER_THREAD]->context);
+    swapcontext(&get_current_tcb()->context, &threadTable[SCHEDULER_THREAD]->context);
 }
