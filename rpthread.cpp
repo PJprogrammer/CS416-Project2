@@ -25,6 +25,12 @@ bool isSchedCreated = false;
 
 void setupTimer();
 void timer_handler(int signum);
+void createSchedulerContext();
+void createMainContext();
+
+static void schedule();
+static void sched_rr();
+static void sched_mlfq();
 
 tcb* get_current_tcb() {
   return threadTable[currentThread];
@@ -164,6 +170,23 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
+     sched_rr();
+     //sched_mlfq();
+
+    // TODO Refactoring: Fix both Makefiles
+    /*
+    // schedule policy
+    #ifndef MLFQ
+        sched_rr();
+    #else
+        sched_mlfq();
+    #endif
+     */
+
+}
+
+/* Round Robin (RR) scheduling algorithm */
+static void sched_rr() {
     currentThread = SCHEDULER_THREAD;
 
     if (queue.empty()) {
@@ -180,36 +203,6 @@ static void schedule() {
     tcb* currTCB = queue.back();
     currentThread = currTCB->id;
     setcontext(&currTCB->context);
-
-    // Every time when setupTimer interrup happens, your thread library
-    // should be contexted switched from thread context to this
-    // schedule function
-
-    // Invoke different actual scheduling algorithms
-    // according to policy (RR or MLFQ)
-
-    // if (sched == RR)
-    //		sched_rr();
-    // else if (sched == MLFQ)
-    // 		sched_mlfq();
-
-    // YOUR CODE HERE
-
-// schedule policy
-#ifndef MLFQ
-    // Choose RR
-#else
-    // Choose MLFQ
-#endif
-
-}
-
-/* Round Robin (RR) scheduling algorithm */
-static void sched_rr() {
-    // Your own implementation of RR
-    // (feel free to modify arguments and return types)
-
-    // YOUR CODE HERE
 }
 
 /* Preemptive MLFQ scheduling algorithm */

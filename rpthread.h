@@ -101,13 +101,6 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex);
 /* destroy the mutex */
 int rpthread_mutex_destroy(rpthread_mutex_t *mutex);
 
-/* Scheduling */
-static void schedule();
-
-/* Library Initialization */
-void createSchedulerContext();
-
-void createMainContext();
 
 #ifdef USE_RTHREAD
 #define pthread_t rpthread_t
