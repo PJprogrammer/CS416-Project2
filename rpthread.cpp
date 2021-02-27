@@ -148,8 +148,10 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     std::atomic_flag_clear_explicit(&mutex->flag, std::memory_order_release);
 
     for(uint i : mutex->queue) {
+        threadTable[i]->status = READY;
         queue.insert(queue.begin(), threadTable[i]);
     }
+    mutex->queue.clear();
 
     return 0;
 };
