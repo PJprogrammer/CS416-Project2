@@ -70,7 +70,6 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 };
 
 void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg) {
-    currTCB->status = SCHEDULED;
     function(arg);
     currTCB->status = FINISHED;
     free(currTCB->context.uc_stack.ss_sp);
