@@ -16,11 +16,11 @@
 #define SCHEDULER_THREAD 0
 #define MAIN_THREAD 1
 
-int threadNum = 2; // Global var to assign thread ids
+int threadCounter = 2; // Global var to assign thread ids
 std::vector<tcb*> queue; // Scheduling queue
 std::vector<tcb*> threadTable(100); // Threads Table
 
-uint currentThread = 1;
+uint currentThread = MAIN_THREAD;
 bool isSchedCreated = false;
 
 void setupTimer();
@@ -32,10 +32,11 @@ tcb* get_current_tcb() {
 
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
-    *thread = threadNum;
+    *thread = threadCounter;
+
     // Initialize new thread
     tcb* newThread = new tcb();
-    newThread->id = threadNum;
+    newThread->id = threadCounter;
     newThread->status = READY;
     newThread->joiningThread = 0;
     getcontext(&newThread->context);
@@ -48,7 +49,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
     }
 
     makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
-    threadTable[threadNum++] = newThread;
+    threadTable[threadCounter++] = newThread;
 
     // Initialize the scheduler & main thread
     if (!isSchedCreated) {
@@ -61,11 +62,8 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
         isSchedCreated = true;
 
         setupTimer();
-
-        // TODO Swap from main thread to scheduler thread?
-        currentThread = 0;
-        swapcontext(&threadTable[MAIN_THREAD]->context, &threadTable[SCHEDULER_THREAD]->context); } else {
-        queue.insert(queue.end()-1, newThread);
+    } else {
+        queue.insert(queue.begin(), newThread);
     }
 
     return 0;
@@ -77,8 +75,7 @@ void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg) {
     currTCB->status = FINISHED;
     free(currTCB->context.uc_stack.ss_sp);
 
-    currentThread = 0;
-    swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
+    setcontext(&threadTable[SCHEDULER_THREAD]->context);
 }
 
 /* give CPU possession to other user-level threads voluntarily */
@@ -86,9 +83,7 @@ int rpthread_yield() {
     tcb* currTCB = get_current_tcb();
     currTCB->status = READY;
 
-    currentThread = 0;
     swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
-
     return 0;
 };
 
@@ -105,7 +100,6 @@ void rpthread_exit(void *value_ptr) {
         queue.insert(queue.begin(), joinedTCB);
     }
 
-    currentThread = 0;
     setcontext(&threadTable[SCHEDULER_THREAD]->context);
 };
 
@@ -119,7 +113,6 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
         joinedTCB->joiningThread = currTCB->id;
         currTCB->status = BLOCKED;
 
-        currentThread = 0;
         swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
     }
 
@@ -144,7 +137,6 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
         mutex->queue.push_back(currTCB->id);
         currTCB->status = BLOCKED;
 
-        currentThread = 0;
         swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
     }
 
@@ -171,6 +163,8 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
+    currentThread = SCHEDULER_THREAD;
+
     if (queue.empty()) {
         return;
     }
@@ -278,5 +272,7 @@ void timer_handler(int signum) {
     write(1, test, strlen(test));
 
     // setupTimer expired, schedule next thread
-    swapcontext(&get_current_tcb()->context, &threadTable[SCHEDULER_THREAD]->context);
+    if(currentThread != SCHEDULER_THREAD) {
+        swapcontext(&get_current_tcb()->context, &threadTable[SCHEDULER_THREAD]->context);
+    }
 }
