@@ -1,5 +1,4 @@
 #include <iostream>
-#include "rpthread.h"
 
 template <typename T>
 struct Node { 
@@ -14,6 +13,7 @@ struct Node {
 template <typename T>
 struct Queue { 
   Node<T> *head, *tail; 
+  int _size = 0;
 
   Queue() {
     head = tail = NULL; 
@@ -24,7 +24,31 @@ struct Queue {
     return head == NULL;
   }
 
+  // return item at index
+  T get(int i) {
+    int count = 0;
+    Node<T> *curr = head; 
+    while (curr->next != tail) {
+      if (i == count)
+        return curr->data;
+      curr = curr->next;
+      ++count;
+    }
+    // failed
+    return NULL;
+  }
+
+  // print linked list -- provided function must be able to print node->data type
+  void func (void (*print)(int)) {
+    Node<T> *n = head; 
+    while (n != NULL) {
+      (*print)(n->data);
+        n = n->next;
+    }
+  }
+
   int size() {
+    /*
     if (tail == NULL || head == NULL) {
       return 0;
     }
@@ -40,7 +64,8 @@ struct Queue {
     }
     
     return res;
-
+    */
+    return _size;
   }
 
   // return last element in runqueue
@@ -62,6 +87,7 @@ struct Queue {
 
     tail->next = tmp; 
     tail = tmp; 
+    ++_size;
   } 
 
   // add tcb to front of queue
@@ -75,6 +101,7 @@ struct Queue {
 
     tmp->next = head;
     head = tmp;
+    ++_size;
   }
 
   // remove and return tcb from front of queue
@@ -92,6 +119,7 @@ struct Queue {
     }
 
     delete (tmp); 
+    --_size;
     return res;
   }
 
@@ -113,8 +141,22 @@ struct Queue {
     T res = tail->data;
     tmp->next = NULL;
     tail = tmp;
-
+    --_size;
     return res;
+  }
+
+  void clear() {
+     /* deref head_ref to get the real head */
+    Node<T> *curr = head;
+    Node<T> *next = NULL;
+
+    while (curr != NULL) {
+        next = curr->next;
+        free(curr);
+        curr = next;
+    }
+
+    head = tail = NULL;
   }
 
   // return tcb at front of queue

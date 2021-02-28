@@ -12,7 +12,6 @@
 #include <sys/time.h>
 #include <cstring>
 #include "rpthread.h"
-#include "queue.h"
 
 #define SCHEDULER_THREAD 0
 #define MAIN_THREAD 1
@@ -145,7 +144,8 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
     tcb* currTCB = get_current_tcb();
 
     if (prev) { // flag was previously true, so mutex is not acquired successfully
-        mutex->queue.push_back(currTCB->id);
+        //mutex->queue.push_back(currTCB->id);
+        mutex->queue.enqueue(currTCB->id);
         currTCB->status = BLOCKED;
 
         swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
@@ -158,10 +158,12 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     std::atomic_flag_clear_explicit(&mutex->flag, std::memory_order_release);
 
-    for(uint i : mutex->queue) {
-        threadTable[i]->status = READY;
-        //queue.insert(queue.begin(), threadTable[i]);
-        run_queue.enqueue(threadTable[i]);
+    //for (uint i : mutex->queue) {
+    for (int i = 0; i < mutex->queue.size(); i++) {
+      int x = mutex->queue.get(i);
+      threadTable[x]->status = READY;
+      //queue.insert(queue.begin(), threadTable[i]);
+      run_queue.enqueue(threadTable[x]);
     }
     mutex->queue.clear();
 

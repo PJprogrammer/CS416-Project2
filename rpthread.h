@@ -31,6 +31,7 @@
 #include <csignal>
 #include <vector>
 #include <atomic>
+#include "queue.h"
 
 #define STACK_SIZE SIGSTKSZ
 
@@ -58,7 +59,8 @@ typedef struct threadControlBlock {
 /* mutex struct definition */
 typedef struct rpthread_mutex_t {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
-    std::vector<uint> queue;
+    //std::vector<uint> queue;
+    Queue<uint> queue;
     /* add something here */
 
     // YOUR CODE HERE
