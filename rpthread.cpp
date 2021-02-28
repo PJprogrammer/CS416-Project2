@@ -12,6 +12,7 @@
 #include <sys/time.h>
 #include <cstring>
 #include "rpthread.h"
+#include "hashmap.h"
 
 #define SCHEDULER_THREAD 0
 #define MAIN_THREAD 1
@@ -19,6 +20,9 @@
 int threadCounter = 2; // Global var to assign thread ids
 //std::vector<tcb*> queue; // Scheduling queue
 std::vector<tcb*> threadTable(100); // Threads Table
+
+// K: thread ID, V: tcb*
+HashMap<int, tcb*> *map = new HashMap<int, tcb*>;
 
 Queue<tcb*> run_queue;
 
@@ -35,7 +39,13 @@ static void sched_rr();
 static void sched_mlfq();
 
 tcb* get_current_tcb() {
-  return threadTable[currentThread];
+  return map->get(currentThread);
+  //return threadTable[currentThread];
+}
+
+tcb* get_scheduler_tcb() {
+  return map->get(SCHEDULER_THREAD);
+  //return threadTable[SCHEDULER_THREAD];
 }
 
 /* create a new thread */
@@ -57,7 +67,8 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
     }
 
     makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
-    threadTable[threadCounter++] = newThread;
+    map->put(threadCounter++, newThread);
+    //threadTable[threadCounter++] = newThread;
 
     // Initialize the scheduler & main thread
     if (!isSchedCreated) {
@@ -67,7 +78,8 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
         //queue.push_back(newThread);
         //queue.push_back(threadTable[MAIN_THREAD]); // mainTCB
 
-        run_queue.enqueue(threadTable[MAIN_THREAD]);
+        //run_queue.enqueue(threadTable[MAIN_THREAD]);
+        run_queue.enqueue(map->get(MAIN_THREAD));
         run_queue.enqueue(newThread);
 
         isSchedCreated = true;
@@ -86,7 +98,7 @@ void rpthread_start(tcb *currTCB, void (*function)(void *), void *arg) {
     currTCB->status = FINISHED;
     free(currTCB->context.uc_stack.ss_sp);
 
-    setcontext(&threadTable[SCHEDULER_THREAD]->context);
+    setcontext(&get_scheduler_tcb()->context);
 }
 
 /* give CPU possession to other user-level threads voluntarily */
@@ -94,7 +106,7 @@ int rpthread_yield() {
     tcb* currTCB = get_current_tcb();
     currTCB->status = READY;
 
-    swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
+    swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     return 0;
 };
 
@@ -106,26 +118,28 @@ void rpthread_exit(void *value_ptr) {
     free(currTCB->context.uc_stack.ss_sp);
 
     if (currTCB->joiningThread != 0) {
-        tcb* joinedTCB = threadTable[currTCB->joiningThread];
+        //tcb* joinedTCB = threadTable[currTCB->joiningThread];
+        tcb* joinedTCB = map->get(currTCB->joiningThread);
         joinedTCB->status = READY;
         //queue.insert(queue.begin(), joinedTCB);
         run_queue.enqueue(joinedTCB);
     }
 
-    setcontext(&threadTable[SCHEDULER_THREAD]->context);
+    setcontext(&get_scheduler_tcb()->context);
 };
 
 
 /* Wait for thread termination */
 int rpthread_join(rpthread_t thread, void **value_ptr) {
     tcb* currTCB = get_current_tcb();
-    tcb* joinedTCB = threadTable[thread];
+    //tcb* joinedTCB = threadTable[thread];
+    tcb* joinedTCB = map->get(thread);
 
     if (joinedTCB->status != FINISHED) {
         joinedTCB->joiningThread = currTCB->id;
         currTCB->status = BLOCKED;
 
-        swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
+        swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
 
     value_ptr = &joinedTCB->retVal;
@@ -148,7 +162,7 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
         mutex->queue.enqueue(currTCB->id);
         currTCB->status = BLOCKED;
 
-        swapcontext(&currTCB->context, &threadTable[SCHEDULER_THREAD]->context);
+        swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
 
     return 0;
@@ -161,9 +175,11 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     //for (uint i : mutex->queue) {
     for (int i = 0; i < mutex->queue.size(); i++) {
       int x = mutex->queue.get(i);
-      threadTable[x]->status = READY;
+      //threadTable[x]->status = READY;
+      map->get(x)->status = READY;
       //queue.insert(queue.begin(), threadTable[i]);
-      run_queue.enqueue(threadTable[x]);
+      //run_queue.enqueue(threadTable[x]);
+      run_queue.enqueue(map->get(x));
     }
     mutex->queue.clear();
 
@@ -241,7 +257,8 @@ void createSchedulerContext() {
 
     makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
 
-    threadTable[SCHEDULER_THREAD] = schedTCB;
+    //threadTable[SCHEDULER_THREAD] = schedTCB;
+    map->put(SCHEDULER_THREAD, schedTCB);
 }
 
 void createMainContext() {
@@ -249,7 +266,8 @@ void createMainContext() {
     mainTCB->id = 1;
     mainTCB->status = READY;
 
-    threadTable[MAIN_THREAD] = mainTCB;
+    //threadTable[MAIN_THREAD] = mainTCB;
+    map->put(MAIN_THREAD, mainTCB);
 }
 
 void setupTimer() {
@@ -279,7 +297,7 @@ void timer_handler(int signum) {
     write(1, test, strlen(test));
 
     // setupTimer expired, schedule next thread
-    if(currentThread != SCHEDULER_THREAD) {
-        swapcontext(&get_current_tcb()->context, &threadTable[SCHEDULER_THREAD]->context);
+    if (currentThread != SCHEDULER_THREAD) {
+        swapcontext(&get_current_tcb()->context, &get_scheduler_tcb()->context);
     }
 }
