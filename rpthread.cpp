@@ -8,17 +8,20 @@
 #include <iostream>
 #include <vector>
 #include <atomic>
-#include "rpthread.h"
 #include <csignal>
 #include <sys/time.h>
 #include <cstring>
+#include "rpthread.h"
+#include "queue.h"
 
 #define SCHEDULER_THREAD 0
 #define MAIN_THREAD 1
 
 int threadCounter = 2; // Global var to assign thread ids
-std::vector<tcb*> queue; // Scheduling queue
+//std::vector<tcb*> queue; // Scheduling queue
 std::vector<tcb*> threadTable(100); // Threads Table
+
+Queue<tcb*> run_queue;
 
 uint currentThread = MAIN_THREAD;
 bool isSchedCreated = false;
@@ -62,14 +65,18 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
         createSchedulerContext();
         createMainContext();
 
-        queue.push_back(newThread);
-        queue.push_back(threadTable[MAIN_THREAD]); // mainTCB
+        //queue.push_back(newThread);
+        //queue.push_back(threadTable[MAIN_THREAD]); // mainTCB
+
+        run_queue.enqueue(threadTable[MAIN_THREAD]);
+        run_queue.enqueue(newThread);
 
         isSchedCreated = true;
 
         setupTimer();
     } else {
-        queue.insert(queue.begin(), newThread);
+        //queue.insert(queue.begin(), newThread);
+        run_queue.enqueue(newThread);
     }
 
     return 0;
@@ -102,7 +109,8 @@ void rpthread_exit(void *value_ptr) {
     if (currTCB->joiningThread != 0) {
         tcb* joinedTCB = threadTable[currTCB->joiningThread];
         joinedTCB->status = READY;
-        queue.insert(queue.begin(), joinedTCB);
+        //queue.insert(queue.begin(), joinedTCB);
+        run_queue.enqueue(joinedTCB);
     }
 
     setcontext(&threadTable[SCHEDULER_THREAD]->context);
@@ -127,9 +135,7 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 };
 
 /* initialize the mutex lock */
-int rpthread_mutex_init(rpthread_mutex_t *mutex,
-                        const pthread_mutexattr_t *mutexattr) {
-
+int rpthread_mutex_init(rpthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr) {
     return 0;
 };
 
@@ -154,7 +160,8 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 
     for(uint i : mutex->queue) {
         threadTable[i]->status = READY;
-        queue.insert(queue.begin(), threadTable[i]);
+        //queue.insert(queue.begin(), threadTable[i]);
+        run_queue.enqueue(threadTable[i]);
     }
     mutex->queue.clear();
 
@@ -189,18 +196,22 @@ static void schedule() {
 static void sched_rr() {
     currentThread = SCHEDULER_THREAD;
 
-    if (queue.empty()) {
+    if (run_queue.empty()) {
         return;
     }
 
-    if (queue.back()->status == FINISHED || queue.back()->status == BLOCKED) {
-        queue.pop_back();
+    //if (queue.back()->status == FINISHED || queue.back()->status == BLOCKED) {
+    if (run_queue.peek()->status == FINISHED || run_queue.peek()->status == BLOCKED) {
+        run_queue.dequeue();
+        //queue.pop_back();
     } else {
-        queue.insert(queue.begin(), queue.back());
-        queue.pop_back();
+        //queue.insert(queue.begin(), queue.back());
+        //queue.pop_back();
+        run_queue.enqueue(run_queue.dequeue());
     }
 
-    tcb* currTCB = queue.back();
+    //tcb* currTCB = queue.back();
+    tcb* currTCB = run_queue.peek();
     currentThread = currTCB->id;
     setcontext(&currTCB->context);
 }
