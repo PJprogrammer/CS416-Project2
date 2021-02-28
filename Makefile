@@ -7,7 +7,7 @@ SCHED = RR
 #TSLICE=5 ##timeslice variable
 
 #all: rpthread.a
-all: main run
+all: clean main run
 
 rpthread.a: rpthread.o
 	$(AR) librpthread.a rpthread.o
