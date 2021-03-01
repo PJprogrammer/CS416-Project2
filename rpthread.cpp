@@ -195,14 +195,15 @@ static void schedule() {
 
 /* Round Robin (RR) scheduling algorithm */
 static int sched_rr(int queueNum) {
-    if (run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED) {
-        run_queue[queueNum].dequeue();
-    } else {
-        run_queue[queueNum].enqueue(run_queue[queueNum].dequeue());
-    }
-
     if (run_queue[queueNum].empty()) {
         return -1;
+    }
+
+    if (run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED) {
+        run_queue[queueNum].dequeue();
+        if (run_queue[queueNum].empty()) return -1;
+    } else {
+        run_queue[queueNum].enqueue(run_queue[queueNum].dequeue());
     }
 
     tcb* currTCB = run_queue[queueNum].peek();
