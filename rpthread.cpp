@@ -22,7 +22,7 @@ int threadCounter = 2; // Global var to assign thread ids
 // K: thread ID, V: tcb*
 HashMap<int, tcb*> *map = new HashMap<int, tcb*>;
 
-Queue<tcb*> run_queue;
+Queue<tcb*> run_queue[4];
 
 uint currentThread = MAIN_THREAD;
 bool isSchedCreated = false;
@@ -33,7 +33,7 @@ void createSchedulerContext();
 void createMainContext();
 
 static void schedule();
-static void sched_rr();
+static int sched_rr(int queueNum);
 static void sched_mlfq();
 
 tcb* get_current_tcb() {
@@ -70,14 +70,14 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
         createSchedulerContext();
         createMainContext();
 
-        run_queue.enqueue(map->get(MAIN_THREAD));
-        run_queue.enqueue(newThread);
+        run_queue[0].enqueue(map->get(MAIN_THREAD));
+        run_queue[0].enqueue(newThread);
 
         isSchedCreated = true;
 
         setupTimer();
     } else {
-        run_queue.enqueue(newThread);
+        run_queue[0].enqueue(newThread);
     }
 
     return 0;
@@ -110,7 +110,7 @@ void rpthread_exit(void *value_ptr) {
     if (currTCB->joiningThread != 0) {
         tcb* joinedTCB = map->get(currTCB->joiningThread);
         joinedTCB->status = READY;
-        run_queue.enqueue(joinedTCB);
+        run_queue[0].enqueue(joinedTCB);
     }
 
     setcontext(&get_scheduler_tcb()->context);
@@ -161,7 +161,7 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     for (int i = 0; i < mutex->queue.size(); i++) {
       int x = mutex->queue.get(i);
       map->get(x)->status = READY;
-      run_queue.enqueue(map->get(x));
+      run_queue[0].enqueue(map->get(x));
     }
     mutex->queue.clear();
 
@@ -177,8 +177,9 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
-     sched_rr();
-     //sched_mlfq();
+    currentThread = SCHEDULER_THREAD;
+    sched_rr(0);
+    //sched_mlfq();
 
     // TODO Refactoring: Fix both Makefiles
     /*
@@ -193,20 +194,18 @@ static void schedule() {
 }
 
 /* Round Robin (RR) scheduling algorithm */
-static void sched_rr() {
-    currentThread = SCHEDULER_THREAD;
-
-    if (run_queue.empty()) {
-        return;
-    }
-
-    if (run_queue.peek()->status == FINISHED || run_queue.peek()->status == BLOCKED) {
-        run_queue.dequeue();
+static int sched_rr(int queueNum) {
+    if (run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED) {
+        run_queue[queueNum].dequeue();
     } else {
-        run_queue.enqueue(run_queue.dequeue());
+        run_queue[queueNum].enqueue(run_queue[queueNum].dequeue());
     }
 
-    tcb* currTCB = run_queue.peek();
+    if (run_queue[queueNum].empty()) {
+        return -1;
+    }
+
+    tcb* currTCB = run_queue[queueNum].peek();
     currentThread = currTCB->id;
     setcontext(&currTCB->context);
 }
