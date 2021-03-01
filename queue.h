@@ -78,6 +78,10 @@ struct Queue {
 
   // add tcb to back of queue
   void enqueue(T x) {
+    if(x == NULL)  {
+        return;
+    }
+
     Node<T> *tmp = new Node<T>(x); 
 
     if (tail == NULL) { 
