@@ -18,8 +18,6 @@
 #define MAIN_THREAD 1
 
 int threadCounter = 2; // Global var to assign thread ids
-//std::vector<tcb*> queue; // Scheduling queue
-std::vector<tcb*> threadTable(100); // Threads Table
 
 // K: thread ID, V: tcb*
 HashMap<int, tcb*> *map = new HashMap<int, tcb*>;
@@ -40,12 +38,10 @@ static void sched_mlfq();
 
 tcb* get_current_tcb() {
   return map->get(currentThread);
-  //return threadTable[currentThread];
 }
 
 tcb* get_scheduler_tcb() {
   return map->get(SCHEDULER_THREAD);
-  //return threadTable[SCHEDULER_THREAD];
 }
 
 /* create a new thread */
@@ -68,17 +64,12 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
     makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
     map->put(threadCounter++, newThread);
-    //threadTable[threadCounter++] = newThread;
 
     // Initialize the scheduler & main thread
     if (!isSchedCreated) {
         createSchedulerContext();
         createMainContext();
 
-        //queue.push_back(newThread);
-        //queue.push_back(threadTable[MAIN_THREAD]); // mainTCB
-
-        //run_queue.enqueue(threadTable[MAIN_THREAD]);
         run_queue.enqueue(map->get(MAIN_THREAD));
         run_queue.enqueue(newThread);
 
@@ -86,7 +77,6 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
         setupTimer();
     } else {
-        //queue.insert(queue.begin(), newThread);
         run_queue.enqueue(newThread);
     }
 
@@ -118,10 +108,8 @@ void rpthread_exit(void *value_ptr) {
     free(currTCB->context.uc_stack.ss_sp);
 
     if (currTCB->joiningThread != 0) {
-        //tcb* joinedTCB = threadTable[currTCB->joiningThread];
         tcb* joinedTCB = map->get(currTCB->joiningThread);
         joinedTCB->status = READY;
-        //queue.insert(queue.begin(), joinedTCB);
         run_queue.enqueue(joinedTCB);
     }
 
@@ -132,7 +120,6 @@ void rpthread_exit(void *value_ptr) {
 /* Wait for thread termination */
 int rpthread_join(rpthread_t thread, void **value_ptr) {
     tcb* currTCB = get_current_tcb();
-    //tcb* joinedTCB = threadTable[thread];
     tcb* joinedTCB = map->get(thread);
 
     if (joinedTCB->status != FINISHED) {
@@ -158,7 +145,6 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
     tcb* currTCB = get_current_tcb();
 
     if (prev) { // flag was previously true, so mutex is not acquired successfully
-        //mutex->queue.push_back(currTCB->id);
         mutex->queue.enqueue(currTCB->id);
         currTCB->status = BLOCKED;
 
@@ -172,13 +158,9 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     std::atomic_flag_clear_explicit(&mutex->flag, std::memory_order_release);
 
-    //for (uint i : mutex->queue) {
     for (int i = 0; i < mutex->queue.size(); i++) {
       int x = mutex->queue.get(i);
-      //threadTable[x]->status = READY;
       map->get(x)->status = READY;
-      //queue.insert(queue.begin(), threadTable[i]);
-      //run_queue.enqueue(threadTable[x]);
       run_queue.enqueue(map->get(x));
     }
     mutex->queue.clear();
@@ -218,17 +200,12 @@ static void sched_rr() {
         return;
     }
 
-    //if (queue.back()->status == FINISHED || queue.back()->status == BLOCKED) {
     if (run_queue.peek()->status == FINISHED || run_queue.peek()->status == BLOCKED) {
         run_queue.dequeue();
-        //queue.pop_back();
     } else {
-        //queue.insert(queue.begin(), queue.back());
-        //queue.pop_back();
         run_queue.enqueue(run_queue.dequeue());
     }
 
-    //tcb* currTCB = queue.back();
     tcb* currTCB = run_queue.peek();
     currentThread = currTCB->id;
     setcontext(&currTCB->context);
@@ -257,7 +234,6 @@ void createSchedulerContext() {
 
     makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
 
-    //threadTable[SCHEDULER_THREAD] = schedTCB;
     map->put(SCHEDULER_THREAD, schedTCB);
 }
 
@@ -266,7 +242,6 @@ void createMainContext() {
     mainTCB->id = 1;
     mainTCB->status = READY;
 
-    //threadTable[MAIN_THREAD] = mainTCB;
     map->put(MAIN_THREAD, mainTCB);
 }
 
