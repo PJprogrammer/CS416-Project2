@@ -5,6 +5,7 @@
 #include <signal.h>
 
 #include <pthread.h>
+#include <cstring>
 #include "../rpthread.h"
 
 #define DEFAULT_THREAD_NUM 2
@@ -21,7 +22,7 @@ int *mem = NULL;
 int sum = 0;
 int itr = RECORD_SIZE / 16;
 
-void external_calculate(void* arg) {
+void* external_calculate(void* arg) {
 	
 	int i = 0, j = 0, k = 0;
 	int n = *((int*) arg);
@@ -103,7 +104,7 @@ int main(int argc, char **argv) {
 	if (argc == 1) {
 		thread_num = DEFAULT_THREAD_NUM;
 	} else {
-		if (argv[1] < 1) {
+		if (atoi(argv[1]) < 1) {
 			printf("enter a valid thread number\n");
 			return 0;
 		} else

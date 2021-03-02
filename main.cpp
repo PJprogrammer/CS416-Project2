@@ -22,6 +22,9 @@ void* test2(void*) {
     cout << "Thread 2: Entered after yield from Thread 1\n";
 
     rpthread_mutex_lock(&mutex);
+    for (int i = 0; i < 100000000; ++i) {
+
+    }
     cout << "Thread 2: Hello \n";
     rpthread_mutex_unlock(&mutex);
 

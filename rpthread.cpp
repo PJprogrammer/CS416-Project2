@@ -293,8 +293,8 @@ void setupTimer() {
 }
 
 void timer_handler(int signum) {
-    char* test = "DEBUG: Running setupTimer handler\n";
-    write(1, test, strlen(test));
+/*    char* test = "DEBUG: Running setupTimer handler\n";
+    write(1, test, strlen(test));*/
 
     // setupTimer expired, schedule next thread
     if (currentThread.tNum != SCHEDULER_THREAD) {
