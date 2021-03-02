@@ -42,12 +42,16 @@ struct Queue {
   }
 
   // print linked list -- provided function must be able to print node->data type
-  void func (void (*print)(int)) {
-    Node<T> *n = head; 
+  template<typename Func>
+  void debug_print (Func f) {
+    Node<T> *n = head;
+    write(1, "[", 1);
     while (n != NULL) {
-      (*print)(n->data);
-        n = n->next;
+      f(n->data);
+      n = n->next;
+      write(1, ", ", 2);
     }
+    write(1, "]", 1);
   }
 
   int size() {
