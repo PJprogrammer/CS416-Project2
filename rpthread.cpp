@@ -28,7 +28,7 @@ HashMap<int, tcb*> *map = new HashMap<int, tcb*>;
 
 Queue<tcb*> run_queue[QUEUE_NUM];
 
-uint currentThread = MAIN_THREAD;
+tTuple currentThread = {MAIN_THREAD, 0};
 bool isSchedCreated = false;
 bool isYielding = false;
 bool isCurrThreadRemoved = false;
@@ -46,7 +46,7 @@ bool isLastQueue(int queueNum);
 bool isThreadInactive(int queueNum);
 
 tcb* get_current_tcb() {
-  return map->get(currentThread);
+  return map->get(currentThread.tNum);
 }
 
 tcb* get_scheduler_tcb() {
@@ -195,7 +195,7 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
-    currentThread = SCHEDULER_THREAD;
+    currentThread.tNum = SCHEDULER_THREAD;
 
     if(SCHED_TYPE == MLFQ) {
         sched_mlfq();
@@ -210,16 +210,7 @@ static void schedule() {
 static int sched_rr(int queueNum) {
     if (run_queue[queueNum].empty()) return 0;
 
-    if(SCHED_TYPE == MLFQ && !isCurrThreadRemoved) {
-        if (run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED) {
-            run_queue[queueNum].dequeue();
-        } else if(isYielding || isLastQueue(queueNum)) {
-            run_queue[queueNum].enqueue(run_queue[queueNum].dequeue());
-        } else {
-            run_queue[queueNum+1].enqueue(run_queue[queueNum].dequeue());
-        }
-        isYielding = false;
-    } else if(SCHED_TYPE == RR) {
+    if(SCHED_TYPE == RR) {
         if (isThreadInactive(queueNum)) {
             run_queue[queueNum].dequeue();
         } else {
@@ -227,26 +218,30 @@ static int sched_rr(int queueNum) {
         }
     }
 
-    if (run_queue[queueNum].empty()) return -1;
-
     tcb* currTCB = run_queue[queueNum].peek();
-    currentThread = currTCB->id;
+    currentThread = {currTCB->id, queueNum};
     setcontext(&currTCB->context);
 }
 
 /* Preemptive MLFQ scheduling algorithm */
 static void sched_mlfq() {
-    isCurrThreadRemoved = false;
+    int qNum = currentThread.qNum;
+
+    if (isThreadInactive(qNum)) {
+        run_queue[qNum].dequeue();
+    } else if(isYielding || isLastQueue(qNum)) {
+        run_queue[qNum].enqueue(run_queue[qNum].dequeue());
+    } else {
+        run_queue[qNum + 1].enqueue(run_queue[qNum].dequeue());
+    }
+    isYielding = false;
+
     int currQueue = 0;
-
     while (currQueue < QUEUE_NUM) {
-        int res = sched_rr(currQueue);
-
-        if(res == -1) {
-            isCurrThreadRemoved = true;
-        }
+        sched_rr(currQueue);
         ++currQueue;
     }
+
 }
 
 void createSchedulerContext() {
@@ -302,7 +297,7 @@ void timer_handler(int signum) {
     write(1, test, strlen(test));
 
     // setupTimer expired, schedule next thread
-    if (currentThread != SCHEDULER_THREAD) {
+    if (currentThread.tNum != SCHEDULER_THREAD) {
         swapcontext(&get_current_tcb()->context, &get_scheduler_tcb()->context);
     }
 }

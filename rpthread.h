@@ -56,6 +56,11 @@ typedef struct threadControlBlock {
     // YOUR CODE HERE
 } tcb;
 
+typedef struct {
+    uint tNum;
+    int qNum;
+} tTuple;
+
 /* mutex struct definition */
 typedef struct rpthread_mutex_t {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
