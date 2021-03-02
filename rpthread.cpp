@@ -18,8 +18,8 @@
 #define MAIN_THREAD 1
 #define QUEUE_NUM 4
 
-enum sched_options {RR, MLFQ};
-int SCHED_TYPE = MLFQ;
+enum sched_options {_RR, _MLFQ};
+int SCHED_TYPE = _MLFQ;
 
 int threadCounter = 2; // Global var to assign thread ids
 
@@ -84,12 +84,11 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
         isSchedCreated = true;
 
-        // TODO Refactoring: Fix both Makefiles
-/*        #ifndef MLFQ
-            SCHED_TYPE = RR;
+	#ifndef MLFQ
+            SCHED_TYPE = _RR;
         #else
-            SCHED_TYPE = MLFQ;
-        #endif*/
+            SCHED_TYPE = _MLFQ;
+        #endif
 
         setupTimer();
     } else {
@@ -197,9 +196,9 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 static void schedule() {
     currentThread.tNum = SCHEDULER_THREAD;
 
-    if(SCHED_TYPE == MLFQ) {
+    if(SCHED_TYPE == _MLFQ) {
         sched_mlfq();
-    } else if(SCHED_TYPE == RR) {
+    } else if(SCHED_TYPE == _RR) {
         sched_rr(0);
     } else {
         write(1, "!!!INVALID SCHEDULE TYPE!!!", 27);
@@ -210,7 +209,7 @@ static void schedule() {
 static int sched_rr(int queueNum) {
     if (run_queue[queueNum].empty()) return 0;
 
-    if(SCHED_TYPE == RR) {
+    if(SCHED_TYPE == _RR) {
         if (isThreadInactive(queueNum)) {
             run_queue[queueNum].dequeue();
         } else {
