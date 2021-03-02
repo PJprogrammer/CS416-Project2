@@ -27,14 +27,17 @@ struct Queue {
   // return item at index
   T get(int i) {
     int count = 0;
-    Node<T> *curr = head; 
-    while (curr->next != tail) {
+    Node<T> *curr = head;
+    while (curr->next != NULL) {
       if (i == count)
         return curr->data;
       curr = curr->next;
       ++count;
     }
-    // failed
+    if(i == count) {
+      return tail->data;
+    }
+
     return NULL;
   }
 
@@ -48,23 +51,6 @@ struct Queue {
   }
 
   int size() {
-    /*
-    if (tail == NULL || head == NULL) {
-      return 0;
-    }
-    if (tail == head) {
-      return 1;
-    }
-  
-    int res = 0;
-    Node<T> *tmp = head; 
-    while (tmp->next != tail) {
-      tmp = tmp->next;
-      ++res;
-    }
-    
-    return res;
-    */
     return _size;
   }
 
@@ -85,26 +71,14 @@ struct Queue {
     Node<T> *tmp = new Node<T>(x); 
 
     if (tail == NULL) { 
-      head = tail = tmp; 
-      return; 
+      head = tail = tmp;
+      ++_size;
+      return;
     } 
 
     tail->next = tmp; 
-    tail = tmp; 
-    ++_size;
-  } 
-
-  // add tcb to front of queue
-  void push(T x) {
-    Node<T> *tmp = new Node<T>(x); 
-
-    if (tail == NULL) { 
-      head = tail = tmp; 
-      return; 
-    }
-
-    tmp->next = head;
-    head = tmp;
+    tail = tmp;
+    tail->next = NULL;
     ++_size;
   }
 
@@ -127,28 +101,6 @@ struct Queue {
     return res;
   }
 
-  // remove and return tcb at back of queue
-  T pop_back() {
-    if (head == NULL) {
-      return NULL; 
-    }
-
-    if (head->next == NULL) {
-      head = tail = NULL;
-    }
-
-    Node<T> *tmp = head; 
-    while (tmp->next != tail) {
-      tmp = tmp->next;
-    }
-    
-    T res = tail->data;
-    tmp->next = NULL;
-    tail = tmp;
-    --_size;
-    return res;
-  }
-
   void clear() {
      /* deref head_ref to get the real head */
     Node<T> *curr = head;
@@ -161,6 +113,8 @@ struct Queue {
     }
 
     head = tail = NULL;
+
+    _size = 0;
   }
 
   // return tcb at front of queue
@@ -170,5 +124,5 @@ struct Queue {
     }
     return head->data;
   } 
-}; 
+};
 
