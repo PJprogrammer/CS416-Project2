@@ -22,7 +22,7 @@ class HashMap {
 
   public: 
   HashMap() {
-    capacity = 20; 
+    capacity = 200;
     msize=0; 
     arr = new HNode<K,V>*[capacity]; 
     for (int i=0 ; i < capacity ; i++) {
