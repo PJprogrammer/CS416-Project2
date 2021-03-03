@@ -44,37 +44,18 @@ typedef struct threadControlBlock {
     ucontext_t context;
     void* retVal;
     uint joiningThread;
-
-    /* add important states in a thread control block */
-    // thread Id
-    // thread status
-    // thread context
-    // thread stack
-    // thread priority
-    // And more ...
-
-    // YOUR CODE HERE
 } tcb;
+
+/* mutex struct definition */
+typedef struct rpthread_mutex_t {
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+    Queue<uint> queue;
+} rpthread_mutex_t;
 
 typedef struct {
     uint tNum;
     int qNum;
 } tTuple;
-
-/* mutex struct definition */
-typedef struct rpthread_mutex_t {
-    std::atomic_flag flag = ATOMIC_FLAG_INIT;
-    //std::vector<uint> queue;
-    Queue<uint> queue;
-    /* add something here */
-
-    // YOUR CODE HERE
-} rpthread_mutex_t;
-
-/* define your data structures here: */
-// Feel free to add your own auxiliary data structures (linked list or queue etc...)
-
-// YOUR CODE HERE
 
 
 /* Function Declarations: */

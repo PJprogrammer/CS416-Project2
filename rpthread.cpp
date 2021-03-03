@@ -4,14 +4,14 @@
 // username of iLab:
 // iLab Server: cd.cs.rutgers.edu
 
-#include <cstdlib>
-#include <iostream>
-#include <vector>
-#include <atomic>
-#include <csignal>
-#include <sys/time.h>
-#include <cstring>
 #include "rpthread.h"
+
+#include <iostream>
+#include <atomic>
+#include <cstdlib>
+#include <csignal>
+#include <cstring>
+#include <sys/time.h>
 #include "hashmap.h"
 
 #define SCHEDULER_THREAD 0
@@ -22,36 +22,31 @@ enum sched_options {_RR, _MLFQ};
 int SCHED_TYPE = _MLFQ;
 
 int threadCounter = 2; // Global var to assign thread ids
+tTuple currentThread = {MAIN_THREAD, 0};
 
-// K: thread ID, V: tcb*
 HashMap<int, tcb*> *map = new HashMap<int, tcb*>;
-
 Queue<tcb*> run_queue[QUEUE_NUM];
 
-tTuple currentThread = {MAIN_THREAD, 0};
 bool isSchedCreated = false;
 bool isYielding = false;
-bool isCurrThreadRemoved = false;
-
-void setupTimer();
-void timer_handler(int signum);
-void createSchedulerContext();
-void createMainContext();
+bool isDebugging = false;
 
 static void schedule();
 static int sched_rr(int queueNum);
 static void sched_mlfq();
 
+void setupTimer();
+void timer_handler(int signum);
+void createContext(ucontext_t* threadContext);
+void createSchedulerContext();
+void createMainContext();
+
+tcb* get_current_tcb();
+tcb* get_scheduler_tcb();
 bool isLastQueue(int queueNum);
 bool isThreadInactive(int queueNum);
+void debug_print(const char* string);
 
-tcb* get_current_tcb() {
-  return map->get(currentThread.tNum);
-}
-
-tcb* get_scheduler_tcb() {
-  return map->get(SCHEDULER_THREAD);
-}
 
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
@@ -62,14 +57,8 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
     newThread->id = threadCounter;
     newThread->status = READY;
     newThread->joiningThread = 0;
+    createContext(&newThread->context);
     getcontext(&newThread->context);
-    newThread->context.uc_stack.ss_sp = malloc(STACK_SIZE);
-    newThread->context.uc_stack.ss_size = STACK_SIZE;
-    newThread->context.uc_stack.ss_flags = NULL;
-
-    if (newThread->context.uc_stack.ss_sp == NULL) {
-        std::cout << "Error: Unable to allocate stack memory: " << 1024*64 << " bytes in the heap\n";
-    }
 
     makecontext(&newThread->context, (void (*)()) &rpthread_start, 3, newThread, function, arg);
     map->put(threadCounter++, newThread);
@@ -84,7 +73,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
         isSchedCreated = true;
 
-	#ifndef MLFQ
+	    #ifndef MLFQ
             SCHED_TYPE = _RR;
         #else
             SCHED_TYPE = _MLFQ;
@@ -188,7 +177,7 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 
 /* destroy the mutex */
 int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
-
+    mutex->queue.clear();
     return 0;
 };
 
@@ -201,7 +190,7 @@ static void schedule() {
     } else if(SCHED_TYPE == _RR) {
         sched_rr(0);
     } else {
-        write(1, "!!!INVALID SCHEDULE TYPE!!!", 27);
+        if(isDebugging) debug_print("!!!INVALID SCHEDULE TYPE!!!");
     }
 }
 
@@ -243,32 +232,6 @@ static void sched_mlfq() {
 
 }
 
-void createSchedulerContext() {
-    tcb* schedTCB = new tcb();
-    schedTCB->id = 0;
-    getcontext(&schedTCB->context);
-    schedTCB->context.uc_link = NULL;
-    schedTCB->context.uc_stack.ss_sp = malloc(STACK_SIZE);
-    schedTCB->context.uc_stack.ss_size = STACK_SIZE;
-    schedTCB->context.uc_stack.ss_flags = NULL;
-
-    if (schedTCB->context.uc_stack.ss_sp == NULL) {
-        std::cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
-    }
-
-    makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
-
-    map->put(SCHEDULER_THREAD, schedTCB);
-}
-
-void createMainContext() {
-    tcb* mainTCB = new tcb();
-    mainTCB->id = 1;
-    mainTCB->status = READY;
-
-    map->put(MAIN_THREAD, mainTCB);
-}
-
 void setupTimer() {
     struct itimerval it_val;	/* for setting itimer */
 
@@ -292,13 +255,51 @@ void setupTimer() {
 }
 
 void timer_handler(int signum) {
-/*    char* test = "DEBUG: Running setupTimer handler\n";
-    write(1, test, strlen(test));*/
+    if(isDebugging) debug_print("Running setupTimer handler\n");
 
     // setupTimer expired, schedule next thread
     if (currentThread.tNum != SCHEDULER_THREAD) {
         swapcontext(&get_current_tcb()->context, &get_scheduler_tcb()->context);
     }
+}
+
+void createContext(ucontext_t* threadContext) {
+    getcontext(threadContext);
+    threadContext->uc_link = NULL;
+    threadContext->uc_stack.ss_sp = malloc(STACK_SIZE);
+    threadContext->uc_stack.ss_size = STACK_SIZE;
+    threadContext->uc_stack.ss_flags = NULL;
+
+    if (threadContext->uc_stack.ss_sp == NULL) {
+        std::cout << "Error: Unable to allocate stack memory: " << STACK_SIZE << " bytes in the heap\n";
+        exit(1);
+    }
+}
+
+void createSchedulerContext() {
+    tcb* schedTCB = new tcb();
+    schedTCB->id = 0;
+    createContext(&schedTCB->context);
+
+    makecontext(&schedTCB->context, (void (*)()) &schedule, 0);
+
+    map->put(SCHEDULER_THREAD, schedTCB);
+}
+
+void createMainContext() {
+    tcb* mainTCB = new tcb();
+    mainTCB->id = 1;
+    mainTCB->status = READY;
+
+    map->put(MAIN_THREAD, mainTCB);
+}
+
+tcb* get_current_tcb() {
+    return map->get(currentThread.tNum);
+}
+
+tcb* get_scheduler_tcb() {
+    return map->get(SCHEDULER_THREAD);
 }
 
 bool isLastQueue(int queueNum) {
@@ -307,4 +308,15 @@ bool isLastQueue(int queueNum) {
 
 bool isThreadInactive(int queueNum) {
     return run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED;
+}
+
+void debug_print(const char* string) {
+    int len = strlen(string) + 7 + 1;
+    char msg[len];
+    memset (msg, 0, len);
+
+    strcat(msg, "DEBUG: ");
+    strcat(msg, string);
+
+    write(1, msg, strlen(msg));
 }
