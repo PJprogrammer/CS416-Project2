@@ -51,6 +51,7 @@ typedef struct threadControlBlock {
 typedef struct rpthread_mutex_t {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
     Queue<uint> queue;
+    uint owner = 0;
 } rpthread_mutex_t;
 
 typedef struct {

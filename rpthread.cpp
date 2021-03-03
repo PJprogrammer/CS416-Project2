@@ -149,8 +149,7 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex, const pthread_mutexattr_t *mute
 
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
-
-    while (mutex->flag.test_and_set()) {
+    while (mutex->flag.test_and_set() && mutex->owner == 0) {
         stopTimer();
         tcb* currTCB = get_current_tcb();
         mutex->queue.enqueue(currTCB->id);
@@ -159,13 +158,21 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
         swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
 
+    mutex->owner = currentThread.tNum;
+
     return 0;
 };
 
 /* release the mutex lock */
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     stopTimer();
+    if(currentThread.tNum != mutex->owner) {
+        std::cout << "Tried unlocking thread without ownership!";
+        exit(1);
+    }
+
     mutex->flag.clear();
+    mutex->owner = 0;
     for (int i = 0; i < mutex->queue.size(); i++) {
         int x = mutex->queue.get(i);
         map->get(x)->status = READY;
