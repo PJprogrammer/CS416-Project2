@@ -36,6 +36,8 @@ static int sched_rr(int queueNum);
 static void sched_mlfq();
 
 void setupTimer();
+void startTimer();
+void stopTimer();
 void timer_handler(int signum);
 void createContext(ucontext_t* threadContext);
 void createSchedulerContext();
@@ -109,7 +111,6 @@ int rpthread_yield() {
 /* terminate a thread */
 void rpthread_exit(void *value_ptr) {
     tcb* currTCB = get_current_tcb();
-    currTCB->status = FINISHED;
     currTCB->retVal = value_ptr;
     free(currTCB->context.uc_stack.ss_sp);
 
@@ -119,6 +120,7 @@ void rpthread_exit(void *value_ptr) {
         run_queue[0].enqueue(joinedTCB);
     }
 
+    currTCB->status = FINISHED;
     setcontext(&get_scheduler_tcb()->context);
 };
 
@@ -130,7 +132,7 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 
     if (joinedTCB->status != FINISHED) {
         joinedTCB->joiningThread = currTCB->id;
-        currTCB->status = BLOCKED;
+        currTCB->status = BLOCKED_JOIN;
 
         swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
@@ -147,13 +149,13 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex, const pthread_mutexattr_t *mute
 
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
-    bool prev = std::atomic_flag_test_and_set_explicit(&mutex->flag, std::memory_order_acquire);
-    tcb* currTCB = get_current_tcb();
 
-    if (prev) { // flag was previously true, so mutex is not acquired successfully
+    while (mutex->flag.test_and_set()) {
+        stopTimer();
+        tcb* currTCB = get_current_tcb();
         mutex->queue.enqueue(currTCB->id);
-        currTCB->status = BLOCKED;
-
+        currTCB->status = BLOCKED_MUTEX;
+        startTimer();
         swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
 
@@ -162,14 +164,15 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
-    std::atomic_flag_clear_explicit(&mutex->flag, std::memory_order_release);
-
+    stopTimer();
+    mutex->flag.clear();
     for (int i = 0; i < mutex->queue.size(); i++) {
-      int x = mutex->queue.get(i);
-      map->get(x)->status = READY;
-      run_queue[0].enqueue(map->get(x));
+        int x = mutex->queue.get(i);
+        map->get(x)->status = READY;
+        run_queue[0].enqueue(map->get(x));
     }
     mutex->queue.clear();
+    startTimer();
 
     return 0;
 };
@@ -254,6 +257,26 @@ void setupTimer() {
     }
 }
 
+void startTimer() {
+    struct itimerval it_val;	/* for setting itimer */
+    it_val.it_value.tv_sec =     TIMESLICE/1000;
+    it_val.it_value.tv_usec =    (TIMESLICE*1000) % 1000000;
+    it_val.it_interval = it_val.it_value;
+    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+        perror("error calling setitimer()");
+        exit(1);
+    }
+}
+
+void stopTimer() {
+    struct itimerval it_val;
+    it_val.it_interval.tv_usec = 0;
+    it_val.it_interval.tv_sec = 0;
+    it_val.it_value.tv_usec = 0;
+    it_val.it_value.tv_sec = 0;
+    setitimer(ITIMER_REAL, &it_val, NULL);
+}
+
 void timer_handler(int signum) {
     if(isDebugging) debug_print("Running setupTimer handler\n");
 
@@ -307,7 +330,7 @@ bool isLastQueue(int queueNum) {
 }
 
 bool isThreadInactive(int queueNum) {
-    return run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED;
+    return run_queue[queueNum].peek()->status == FINISHED || run_queue[queueNum].peek()->status == BLOCKED_MUTEX || run_queue[queueNum].peek()->status == BLOCKED_JOIN;
 }
 
 void debug_print(const char* string) {

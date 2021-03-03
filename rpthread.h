@@ -20,8 +20,9 @@
 
 #define READY 0
 #define SCHEDULED 1
-#define BLOCKED 2
-#define FINISHED 3
+#define BLOCKED_MUTEX 2
+#define BLOCKED_JOIN 3
+#define FINISHED 4
 
 /* include lib header files that you need here: */
 #include <unistd.h>
