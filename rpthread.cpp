@@ -149,7 +149,7 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex, const pthread_mutexattr_t *mute
 
 /* aquire the mutex lock */
 int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
-    while (mutex->flag.test_and_set() && mutex->owner == 0) {
+    while (mutex->flag.test_and_set()) {
         stopTimer();
         tcb* currTCB = get_current_tcb();
         mutex->queue.enqueue(currTCB->id);
@@ -158,7 +158,7 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
         swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
 
-    mutex->owner = currentThread.tNum;
+    mutex->owner = get_current_tcb()->id;
 
     return 0;
 };
@@ -166,19 +166,18 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 /* release the mutex lock */
 int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
     stopTimer();
-    if(currentThread.tNum != mutex->owner) {
+    if(get_current_tcb()->id != mutex->owner) {
         std::cout << "Tried unlocking thread without ownership!";
         exit(1);
     }
 
-    mutex->flag.clear();
-    mutex->owner = 0;
     for (int i = 0; i < mutex->queue.size(); i++) {
         int x = mutex->queue.get(i);
         map->get(x)->status = READY;
         run_queue[0].enqueue(map->get(x));
     }
     mutex->queue.clear();
+    std::atomic_flag_clear_explicit(&mutex->flag, std::memory_order_seq_cst);
     startTimer();
 
     return 0;
