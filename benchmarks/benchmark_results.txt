@@ -1,0 +1,39 @@
+p_thread library benchmark results:
+pj242@cd:~/CS416-Project2/benchmarks$ ./benchmark.sh ./vector_multiply
+./vector_multiply - Average for 2 threads is: 204
+./vector_multiply - Average for 5 threads is: 242
+./vector_multiply - Average for 10 threads is: 332
+./vector_multiply - Average for 50 threads is: 376
+./vector_multiply - Average for 100 threads is: 394
+pj242@cd:~/CS416-Project2/benchmarks$ ./benchmark.sh ./parallel_cal
+./parallel_cal - Average for 2 threads is: 1484
+./parallel_cal - Average for 5 threads is: 965
+./parallel_cal - Average for 10 threads is: 763
+./parallel_cal - Average for 50 threads is: 715
+./parallel_cal - Average for 100 threads is: 716
+pj242@cd:~/CS416-Project2/benchmarks$ ./benchmark.sh ./external_cal
+./external_cal - Average for 2 threads is: 4083
+./external_cal - Average for 5 threads is: 2970
+./external_cal - Average for 10 threads is: 2765
+./external_cal - Average for 50 threads is: 2724
+./external_cal - Average for 100 threads is: 2745
+
+our thread library benchmark results:
+pj242@cd:~/CS416-Project2/benchmarks$ ./benchmark.sh ./vector_multiply
+./vector_multiply - Average for 2 threads is: 194
+./vector_multiply - Average for 5 threads is: 195
+./vector_multiply - Average for 10 threads is: 197
+./vector_multiply - Average for 50 threads is: 304
+./vector_multiply - Average for 100 threads is: 261
+pj242@cd:~/CS416-Project2/benchmarks$ ./benchmark.sh ./parallel_cal
+./parallel_cal - Average for 2 threads is: 2857
+./parallel_cal - Average for 5 threads is: 2853
+./parallel_cal - Average for 10 threads is: 2858
+./parallel_cal - Average for 50 threads is: 2853
+./parallel_cal - Average for 100 threads is: 2854
+pj242@cd:~/CS416-Project2/benchmarks$ ./benchmark.sh ./external_cal
+./external_cal - Average for 2 threads is: 7334
+./external_cal - Average for 5 threads is: 7459
+./external_cal - Average for 10 threads is: 7347
+./external_cal - Average for 50 threads is: 7354
+./external_cal - Average for 100 threads is: 7364
