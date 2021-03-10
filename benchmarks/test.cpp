@@ -1,18 +1,30 @@
-#include <stdio.h>
+#include <cstdio>
 #include <unistd.h>
 #include <pthread.h>
 #include "../rpthread.h"
 
-/* A scratch program template on which to call and
- * test rpthread library functions as you implement
- * them.
- *
- * You can modify and use this program as much as possible.
- * This will not be graded.
- */
-int main(int argc, char **argv) {
 
-	/* Implement HERE */
+void* myprint(void *x)
+{
+    int k = *((int *)x);
+    printf("Helper Thread: Thread created.. value of k [%d]\n",k);
 
-	return 0;
+    int* ret = (int*) malloc(sizeof(int ));
+    *ret = k + 10;
+    printf("Helper Thread: New value of k [%d]\n", *ret);
+
+    pthread_exit(ret);
+}
+
+
+int main()
+{
+    pthread_t th1;
+    int x = 5;
+    void *y;
+
+    pthread_create(&th1, NULL, myprint, (void*)&x);
+    pthread_join(th1, &y);
+
+    printf("Main Thread: Exit value is [%d]\n",*((int*)y));
 }

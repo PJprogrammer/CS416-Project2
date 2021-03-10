@@ -137,7 +137,9 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
         swapcontext(&currTCB->context, &get_scheduler_tcb()->context);
     }
 
-    value_ptr = &joinedTCB->retVal;
+    if(value_ptr != NULL) {
+        *value_ptr = joinedTCB->retVal;
+    }
 
     return 0;
 };
