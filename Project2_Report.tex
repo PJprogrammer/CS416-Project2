@@ -1,0 +1,132 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{siunitx}
+\usepackage{float}
+
+
+\geometry{margin=0.6in}
+
+\sisetup{math-micro=\text{µ},text-micro=µ}
+
+\title{CS416 - User Level Thread Library}
+\author{Paul John (pj242), Marko Elez (me470)}
+\date{March 2021}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+This document explains our implementation of a purely user-level thread library that closely resembles the POSIX thread (pthread) library interface.
+
+\section{API}
+\subsection{Methods: Thread}
+This section documents the implementation of every method in the thread library along with that of the scheduler.
+\begin{itemize}
+    \item \texttt{rpthread\_create}
+    \begin{itemize}
+      \item[] Every time this method is called, a new thread control block is initialized and is added to the top most run queue in the scheduler.
+      \item[] The very first time this method is called, the thread library also creates thread control blocks for the scheduler and main context, starts a periodic timer interrupt, and adds the thread control block for the main context to the run queue.
+    \end{itemize}
+    
+    \item \texttt{rpthread\_yield}
+    \begin{itemize}
+      \item[] Every time this method is called, the thread currently running will save its context and swap into the scheduler context.
+    \end{itemize}
+    
+    \item \texttt{rpthread\_exit}
+    \begin{itemize}
+      \item[] Every time this method is called, the thread currently running will deallocate its stack and change its status to 'Finished'. Additionally, before switching into the scheduler context, any thread waiting for this thread's completion is added to the run queue.
+    \end{itemize}
+    
+    \item \texttt{rpthread\_join}
+    \begin{itemize}
+      \item[] Every time this method is called, the status of the thread we are joining is checked. If the status is 'Finished', this method will hand back the return value of the thread we are joining immediately to the current thread. 
+      \item[] Otherwise, the method will change the current thread's status to 'Blocked' and set a parameter in the control block of the thread we are joining to indicate that the current thread is waiting for it to complete. Then, the method will switch into the scheduler context. 
+    \end{itemize}
+    
+    \item \texttt{rpthread\_mutex\_init}
+    \begin{itemize}
+      \item[] Every time this method is called, nothing occurs since the parameters in the mutex struct are initialized by default.
+    \end{itemize}
+    
+    \item \texttt{rpthread\_mutex\_lock}
+    \begin{itemize}
+      \item[] Every time this method is called, the current thread will try to set the atomic flag (indicating if this particular mutex is in use) to true. If the current thread is successful in setting the flag, the method will return immediately after indicating that the current thread owns the instance of the mutex. 
+      \item[] Otherwise, the thread currently running will get added to the blocked queue and its status will get changed to 'Blocked'. 
+    \end{itemize}
+    
+    \item \texttt{rpthread\_mutex\_unlock}
+    \begin{itemize}
+      \item[] Every time the method is called, the atomic flag will get cleared and all the threads in the blocked queue will get added to the run queue. After clearing the blocked queue, the method will immediately return.
+    \end{itemize}
+    
+    \item \texttt{rpthread\_mutex\_destroy}
+    \begin{itemize}
+      \item[] Every time the method is called, the queue storing the blocked threads will be deallocated.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Methods: Scheduler}
+\begin{itemize}
+\item \texttt{scheduler\_round\_robin}
+    \begin{itemize}
+      \item[] Every time the method is called, it will check if the thread currently executing is in a blocked/finished state. If the thread is in a blocked/finished state, the thread's control block will be removed from the run queue. Otherwise, the current thread (at the front of the run queue) will get moved to the back of the run queue. 
+      \item[] Finally, the next thread at the front of the run queue will subsequently get scheduled.
+    \end{itemize}
+    
+    \item \texttt{scheduler\_multi\_level\_feedback\_queue}
+    \begin{itemize}
+      \item[] Every time the method is called, it will check if the thread currently executing is in a blocked/finished state. If the thread is in a blocked/finished state, the thread's control block will be removed from the run queue. Otherwise, if the current thread yielded to the scheduler or is in the last queue, it will get moved (from the front of the run queue) to the back of the run queue. Lastly, any thread that did not fall into any those categories, will get demoted to the back of a lower run queue.
+      \item[] Finally, the thread sitting at the front of the top most (non-empty) run queue will subsequently get scheduled.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Structures}
+This section details the different structures used in the thread library.
+
+\renewcommand{\lstlistingname}{Struct}
+\begin{lstlisting}[caption={Thread Control Block}]
+    typedef struct threadControlBlock {
+        uint id;               // Unique ID
+        int status;            // State
+        ucontext_t context;    // Context (stack, ...)
+        void* retVal;          // Return Value
+        uint joiningThread;    // ID of thread wanting to join
+    } tcb;
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Mutex}]
+    typedef struct rpthread_mutex_t {
+        std::atomic_flag flag; // Indicates whether this mutex is locked/freed
+        Queue<uint> queue;     // Contains list of threads blocked on mutex
+        uint owner = 0;        // Indicates which thread has locked mutex
+    } rpthread_mutex_t;
+\end{lstlisting}
+
+\section{Performance}
+\begin{table}[H]
+  \begin{tabular}{c c c c c c c}
+    \toprule
+    \multirow{2}{*}{Thread Count} &
+      \multicolumn{3}{c}{Linux pThread Performance (\si{\micro}s)} &
+      \multicolumn{3}{c}{My pThread Performance (\si{\micro}s)} \\
+      & {\texttt{vector\_multiply}} & {\texttt{parallel\_cal}} & {\texttt{external\_cal}} & {\texttt{vector\_multiply}} & {\texttt{parallel\_cal}} & {\texttt{external\_cal}} \\
+      \midrule
+    2   & 204 & 1484 & 4083 & 194 & 2857 & 7334 \\
+    5   & 242 & 965  & 2970 & 195 & 2853 & 7459 \\
+    10  & 332 & 763  & 2765 & 197 & 2858 & 7347 \\
+    50  & 376 & 715  & 2724 & 304 & 2853 & 7354 \\
+    100 & 394 & 716  & 2745 & 261 & 2854 & 7364 \\
+    \bottomrule
+  \end{tabular}
+  \caption{pThread Library Performance Comparison}
+  \label{table:1}
+\end{table}
+Analysis: The Linux pThread library vastly outperforms our pThread library implementation when run against the given workloads: \texttt{parallel\_cal} and \texttt{external\_cal}. Interestingly enough, the Linux pThread library seems to perform better as the thread count increases. On the other hand, our pThread library produces a relatively consistent running time even when the thread count increases. In regards to \texttt{vector\_multiply} workload, our pThread library actually outperforms the Linux pThread library by a slight margin.
+
+\end{document}
