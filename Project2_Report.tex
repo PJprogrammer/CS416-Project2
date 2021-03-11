@@ -114,19 +114,19 @@ This section details the different structures used in the thread library.
     \toprule
     \multirow{2}{*}{Thread Count} &
       \multicolumn{3}{c}{Linux pThread Performance (\si{\micro}s)} &
-      \multicolumn{3}{c}{My pThread Performance (\si{\micro}s)} \\
+      \multicolumn{3}{c}{My pThread Performance (RR/MLFQ \si{\micro}s)} \\
       & {\texttt{vector\_multiply}} & {\texttt{parallel\_cal}} & {\texttt{external\_cal}} & {\texttt{vector\_multiply}} & {\texttt{parallel\_cal}} & {\texttt{external\_cal}} \\
       \midrule
-    2   & 204 & 1484 & 4083 & 194 & 2857 & 7334 \\
-    5   & 242 & 965  & 2970 & 195 & 2853 & 7459 \\
-    10  & 332 & 763  & 2765 & 197 & 2858 & 7347 \\
-    50  & 376 & 715  & 2724 & 304 & 2853 & 7354 \\
-    100 & 394 & 716  & 2745 & 261 & 2854 & 7364 \\
+    2   & 204 & 1484 & 4083 & 194/195 & 2857/2855 & 7334/7334 \\
+    5   & 242 & 965  & 2970 & 195/196 & 2853/2857 & 7459/7342 \\
+    10  & 332 & 763  & 2765 & 197/198 & 2858/2853 & 7347/7358 \\
+    50  & 376 & 715  & 2724 & 304/311 & 2853/2857 & 7354/7351 \\
+    100 & 394 & 716  & 2745 & 261/267 & 2854/2866 & 7364/7376 \\
     \bottomrule
   \end{tabular}
   \caption{pThread Library Performance Comparison}
   \label{table:1}
 \end{table}
-Analysis: The Linux pThread library vastly outperforms our pThread library implementation when run against the given workloads: \texttt{parallel\_cal} and \texttt{external\_cal}. Interestingly enough, the Linux pThread library seems to perform better as the thread count increases. On the other hand, our pThread library produces a relatively consistent running time even when the thread count increases. In regards to \texttt{vector\_multiply} workload, our pThread library actually outperforms the Linux pThread library by a slight margin.
+Analysis: The Linux pThread library vastly outperforms our pThread library implementation when run against the given workloads: \texttt{parallel\_cal} and \texttt{external\_cal}. Interestingly enough, the Linux pThread library seems to perform better as the thread count increases. On the other hand, our pThread library produces a relatively consistent running time even when the thread count increases. In regards to \texttt{vector\_multiply} workload, our pThread library actually outperforms the Linux pThread library by a slight margin. Lastly, varying the type of scheduler we use Round Robin/Multi-Level Feedback Queue for the thread library does not seem to have an effect on the performance.
 
 \end{document}
