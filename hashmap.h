@@ -1,3 +1,9 @@
+// File:	hashmap.h
+
+// List all group member's name: Marko Elez (me470), Paul John (pj242)
+// username of iLab:
+// iLab Server: cd.cs.rutgers.edu
+
 #pragma once
 
 #include <iostream>
@@ -24,7 +30,7 @@ class HashMap {
 
   public: 
   HashMap() {
-    capacity = 200;
+    capacity = 205;
     msize=0; 
     arr = new HNode<K,V>*[capacity]; 
     for (int i=0 ; i < capacity ; i++) {

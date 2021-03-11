@@ -1,4 +1,4 @@
-// File:	rpthread_t.h
+// File:	rpthread.h
 
 // List all group member's name: Marko Elez (me470), Paul John (pj242)
 // username of iLab:
